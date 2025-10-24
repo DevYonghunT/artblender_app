@@ -26,4 +26,3 @@ class SegmentationService {
     return byteData?.buffer.asUint8List();
   }
 }
-
