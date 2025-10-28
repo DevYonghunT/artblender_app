@@ -137,7 +137,7 @@ packages:
     source: hosted
     version: "0.11.0"
   google_mlkit_subject_segmentation:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: google_mlkit_subject_segmentation
       sha256: "7096c6f76f1a302af423a6dfe51a42c4195658a49cb36c959688dd9590e5f9ac"
@@ -161,7 +161,7 @@ packages:
     source: hosted
     version: "4.1.2"
   image_gallery_saver:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: image_gallery_saver
       sha256: "0aba74216a4d9b0561510cb968015d56b701ba1bd94aace26aacdd8ae5761816"
@@ -169,7 +169,7 @@ packages:
     source: hosted
     version: "2.0.3"
   image_picker:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: image_picker
       sha256: "736eb56a911cf24d1859315ad09ddec0b66104bc41a7f8c5b96b4e2620cf5041"
@@ -321,7 +321,7 @@ packages:
     source: hosted
     version: "2.1.8"
   provider:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: provider
       sha256: "4e82183fa20e5ca25703ead7e05de9e4cceed1fbd1eadc1ac3cb6f565a09f272"
@@ -329,7 +329,7 @@ packages:
     source: hosted
     version: "6.1.5+1"
   screenshot:
-    dependency: "direct dev"
+    dependency: "direct main"
     description:
       name: screenshot
       sha256: d448f43130f49bc7eead1b267b3ea0291cb2450f037bb0a0ecce7aa4c65e2aee
