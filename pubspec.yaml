@@ -39,6 +39,7 @@ dependencies:
   image_picker: ^1.0.7
   google_mlkit_subject_segmentation: ^0.0.2
   image_gallery_saver: ^2.0.3
+  google_mlkit_commons: any
 
 dev_dependencies:
   flutter_test:
