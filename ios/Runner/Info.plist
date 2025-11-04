@@ -2,6 +2,10 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSCameraUsageDescription</key>
+	<string>작품에 합성할 배경 사진을 촬영하기 위해 카메라 접근 권한이 필요합니다.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>카메라 기능을 사용하기 위해 마이크 권한이 필요합니다.</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
@@ -45,10 +49,7 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
-	<key>NSCameraUsageDescription</key>
-    	<string>그림을 촬영하고 배경을 찍어 작품을 합성하는 데 카메라가 필요합니다.</string>
-
-    	<key>NSPhotoLibraryAddUsageDescription</key>
-    	<string>완성된 작품을 사용자의 사진 앨범에 저장하기 위해 권한이 필요합니다.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>완성된 작품을 사용자의 사진 앨범에 저장하기 위해 권한이 필요합니다.</string>
 </dict>
 </plist>
