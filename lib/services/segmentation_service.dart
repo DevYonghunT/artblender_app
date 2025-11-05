@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
-import '../providers/canvas_provider.dart'; // ShapeType을 위해 임포트
+import '../providers/canvas_provider.dart';
 
 class SegmentationService {
   Future<ui.Image> _decodeImage(File imageFile) async {
@@ -25,7 +25,6 @@ class SegmentationService {
     return originalImage;
   }
 
-  // getCutoutImageBytes 함수 시그니처 수정
   Future<Uint8List?> getCutoutImageBytes(
       File imageFile, List<Offset?> rawPoints, Size viewSize, ShapeType shapeType) async {
     try {
@@ -60,11 +59,9 @@ class SegmentationService {
 
       if (imagePoints.isEmpty) return null;
 
-      // --- 로직 수정: shapeType에 따라 다른 경로 생성 ---
       final Path userPath = Path();
       switch (shapeType) {
         case ShapeType.circle:
-          // 전달받은 점들로 사각형을 만들고, 그 안에 내접하는 타원을 경로로 사용합니다.
           final rect = Rect.fromPoints(imagePoints[0], imagePoints[2]);
           userPath.addOval(rect);
           break;
@@ -73,11 +70,10 @@ class SegmentationService {
           userPath.addRect(rect);
           break;
         case ShapeType.freeform:
-        default:
           userPath.addPolygon(imagePoints, true);
           break;
+        // 모든 enum 케이스를 처리했으므로 default는 필요 없습니다.
       }
-      // --- 로직 수정 끝 ---
 
       final imageRectPath = Path()
         ..addRect(Rect.fromLTWH(0, 0, imageSize.width, imageSize.height));
