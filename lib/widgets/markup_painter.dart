@@ -1,26 +1,27 @@
 import 'package:flutter/material.dart';
+import '../models/markup_stroke.dart';
 
 class MarkupPainter extends CustomPainter {
-  final List<Offset?> points;
+  const MarkupPainter({required this.strokes});
 
-  MarkupPainter({required this.points});
+  final List<MarkupStroke> strokes;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.red // 마크업 선 색상
-      ..strokeWidth = 10.0 // 마크업 선 두께
-      ..strokeCap = StrokeCap.round; // 선 끝 모양
+    for (final stroke in strokes) {
+      if (stroke.points.length < 2) continue;
+      final paint = Paint()
+        ..color = stroke.color
+        ..strokeWidth = stroke.strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
 
-    for (int i = 0; i < points.length - 1; i++) {
-      if (points[i] != null && points[i + 1] != null) {
-        canvas.drawLine(points[i]!, points[i + 1]!, paint);
+      for (int i = 0; i < stroke.points.length - 1; i++) {
+        canvas.drawLine(stroke.points[i], stroke.points[i + 1], paint);
       }
     }
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) {
-    return true; // 마크업은 실시간으로 그려져야 하므로 항상 다시 그립니다.
-  }
+  bool shouldRepaint(covariant MarkupPainter oldDelegate) => true;
 }

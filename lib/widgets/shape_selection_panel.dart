@@ -7,19 +7,21 @@ class ShapeSelectionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // provider의 상태를 읽기만 하므로 listen: false
+    // final provider = context.read<CanvasProvider>(); // 사용되지 않는 변수이므로 삭제
 
     return Positioned(
       top: 60, // 화면 상단에 배치
       left: 0,
       right: 0,
       child: Center(
-        // Consumer를 사용하여 shapeType이 변경될 때만 이 부분을 다시 그리도록 최적화
         child: Consumer<CanvasProvider>(
           builder: (context, provider, child) {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.5),
+                // withOpacity -> withAlpha로 수정
+                color: Colors.black.withAlpha(128), // 0.5 opacity = 128 alpha
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Row(
@@ -39,7 +41,6 @@ class ShapeSelectionPanel extends StatelessWidget {
     );
   }
 
-  // 각 도형 선택 버튼을 만드는 헬퍼 위젯
   Widget _buildShapeButton(BuildContext context, CanvasProvider provider, ShapeType type, IconData icon) {
     final bool isSelected = provider.shapeType == type;
     return IconButton(

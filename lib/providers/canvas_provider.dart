@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/image_service.dart';
 import '../services/segmentation_service.dart';
 import '../services/save_service.dart';
+import '../models/markup_stroke.dart';
 
 enum ShapeType { freeform, circle, rectangle }
 enum MarkupTarget { none, drawable, background }
@@ -22,9 +23,18 @@ class CanvasProvider extends ChangeNotifier {
   Uint8List? _cutoutImageBytes;
   bool _isLoading = false;
 
-  MarkupTarget _markupTarget = MarkupTarget.none;
+  File? _subjectImage;
   File? _imageForMarkup;
-  final List<Offset?> _markupPoints = [];
+
+  Size? _subjectImageSize;
+  Size? _backgroundImageSize;
+  Size? _cutoutImageSize;
+
+  MarkupTarget _markupTarget = MarkupTarget.none;
+  final List<MarkupStroke> _markupStrokes = [];
+  MarkupStroke? _currentMarkupStroke;
+  Color _markupColor = Colors.red;
+  double _markupStrokeWidth = 6.0;
 
   ShapeType _shapeType = ShapeType.freeform;
   final List<Offset?> _points = [];
@@ -36,11 +46,18 @@ class CanvasProvider extends ChangeNotifier {
   List<CameraDescription>? _cameras;
 
   bool get isMarkingUp => _markupTarget != MarkupTarget.none;
+  MarkupTarget get markupTarget => _markupTarget;
   File? get imageForMarkup => _imageForMarkup;
-  List<Offset?> get markupPoints => _markupPoints;
+  File? get subjectImage => _subjectImage;
+  List<MarkupStroke> get markupStrokes => _markupStrokes;
+  Color get markupColor => _markupColor;
+  double get markupStrokeWidth => _markupStrokeWidth;
   File? get drawableImage => _drawableImage;
   File? get backgroundImage => _backgroundImage;
   Uint8List? get cutoutImage => _cutoutImageBytes;
+  Size? get subjectImageSize => _subjectImageSize;
+  Size? get backgroundImageSize => _backgroundImageSize;
+  Size? get cutoutImageSize => _cutoutImageSize;
   bool get isLoading => _isLoading;
   ShapeType get shapeType => _shapeType;
   List<Offset?> get points => _points;
@@ -79,30 +96,50 @@ class CanvasProvider extends ChangeNotifier {
 
     _cutoutImageBytes = null;
     _backgroundImage = null;
+    _backgroundImageSize = null;
     clearDrawing();
     _markupTarget = MarkupTarget.drawable;
     _imageForMarkup = originalImage;
-    _markupPoints.clear();
+    _drawableImage = null;
+    _subjectImage = originalImage;
+    _subjectImageSize = await _getImageSizeFromFile(originalImage);
+    _cutoutImageSize = null;
+    _markupStrokes.clear();
+    _currentMarkupStroke = null;
     notifyListeners();
   }
 
   void startMarkup(Offset point) {
-    _markupPoints.add(point);
+    final stroke = MarkupStroke(
+      points: [point],
+      color: _markupColor,
+      strokeWidth: _markupStrokeWidth,
+    );
+    _currentMarkupStroke = stroke;
+    _markupStrokes.add(stroke);
     notifyListeners();
   }
   void updateMarkup(Offset point) {
-    _markupPoints.add(point);
+    final stroke = _currentMarkupStroke;
+    if (stroke == null) return;
+    stroke.points.add(point);
     notifyListeners();
   }
   void endMarkup() {
-    _markupPoints.add(null);
+    _currentMarkupStroke = null;
     notifyListeners();
   }
 
   void cancelMarkup() {
+    final previousTarget = _markupTarget;
     _markupTarget = MarkupTarget.none;
     _imageForMarkup = null;
-    _markupPoints.clear();
+    _markupStrokes.clear();
+    _currentMarkupStroke = null;
+    if (previousTarget == MarkupTarget.drawable && _cutoutImageBytes == null) {
+      _subjectImage = null;
+      _subjectImageSize = null;
+    }
     notifyListeners();
   }
 
@@ -122,13 +159,17 @@ class CanvasProvider extends ChangeNotifier {
 
     if (_markupTarget == MarkupTarget.drawable) {
       _drawableImage = markedUpImageFile;
+      _subjectImage = markedUpImageFile;
+      _subjectImageSize = await _getImageSizeFromFile(markedUpImageFile);
     } else if (_markupTarget == MarkupTarget.background) {
       _backgroundImage = markedUpImageFile;
+      _backgroundImageSize = await _getImageSizeFromFile(markedUpImageFile);
     }
 
     _markupTarget = MarkupTarget.none;
     _imageForMarkup = null;
-    _markupPoints.clear();
+    _markupStrokes.clear();
+    _currentMarkupStroke = null;
     _setLoading(false);
   }
   
@@ -154,29 +195,32 @@ class CanvasProvider extends ChangeNotifier {
   }
 
   Future<void> captureBackground() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    final controller = _cameraController;
+    if (controller == null || !controller.value.isInitialized) return;
+
     _setLoading(true);
-    
-    XFile? imageFile;
     try {
-      imageFile = await _cameraController!.takePicture();
+      final imageFile = await controller.takePicture();
+
+      _markupTarget = MarkupTarget.background;
+      final file = File(imageFile.path);
+      _imageForMarkup = file;
+      _backgroundImage = null;
+      _backgroundImageSize = null;
+      _backgroundImageSize = await _getImageSizeFromFile(file);
+      _markupStrokes.clear();
+      _currentMarkupStroke = null;
+      _isPickingBackground = false;
+      notifyListeners();
     } catch (e) {
       debugPrint('Error taking picture: $e');
-      _setLoading(false);
+      _isPickingBackground = false;
+      notifyListeners();
+    } finally {
       await _cameraController?.dispose();
       _cameraController = null;
-      notifyListeners();
-      return;
+      _setLoading(false);
     }
-    
-    await _cameraController!.dispose();
-    _cameraController = null;
-    _isPickingBackground = false;
-
-    _markupTarget = MarkupTarget.background;
-    _imageForMarkup = File(imageFile.path); 
-    _markupPoints.clear();
-    _setLoading(false);
   }
   
   void setShapeType(ShapeType type) {
@@ -256,6 +300,11 @@ class CanvasProvider extends ChangeNotifier {
     _setLoading(true);
     _cutoutImageBytes = await _segmentationService.getCutoutImageBytes(
       _drawableImage!, finalPoints, box.size, shapeType);
+    if (_cutoutImageBytes != null) {
+      _cutoutImageSize = await _getImageSizeFromBytes(_cutoutImageBytes!);
+    } else {
+      _cutoutImageSize = null;
+    }
     _drawableImage = null;
     clearDrawing();
     _setLoading(false);
@@ -279,6 +328,75 @@ class CanvasProvider extends ChangeNotifier {
     notifyListeners();
   }
   
+  void setMarkupColor(Color color) {
+    if (_markupColor == color) return;
+    _markupColor = color;
+    notifyListeners();
+  }
+
+  void setMarkupStrokeWidth(double width) {
+    final clamped = width.clamp(2.0, 16.0).toDouble();
+    if (_markupStrokeWidth == clamped) return;
+    _markupStrokeWidth = clamped;
+    notifyListeners();
+  }
+
+  void undoMarkup() {
+    if (_markupStrokes.isEmpty) return;
+    _markupStrokes.removeLast();
+    _currentMarkupStroke = null;
+    notifyListeners();
+  }
+
+  void clearMarkup() {
+    if (_markupStrokes.isEmpty) return;
+    _markupStrokes.clear();
+    _currentMarkupStroke = null;
+    notifyListeners();
+  }
+
+  Future<void> retakeCurrentCapture() async {
+    if (_markupTarget == MarkupTarget.drawable) {
+      _markupTarget = MarkupTarget.none;
+      _imageForMarkup = null;
+      _markupStrokes.clear();
+      _currentMarkupStroke = null;
+      notifyListeners();
+      await loadDrawing();
+    } else if (_markupTarget == MarkupTarget.background) {
+      _markupTarget = MarkupTarget.none;
+      _imageForMarkup = null;
+      _markupStrokes.clear();
+      _currentMarkupStroke = null;
+      notifyListeners();
+      await startBackgroundPicking();
+    }
+  }
+
+  Future<Size?> _getImageSizeFromFile(File file) async {
+    try {
+      final bytes = await file.readAsBytes();
+      return _getImageSizeFromBytes(bytes);
+    } catch (e) {
+      debugPrint('Failed to read image size: $e');
+      return null;
+    }
+  }
+
+  Future<Size?> _getImageSizeFromBytes(Uint8List bytes) async {
+    try {
+      final codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      final image = frame.image;
+      final size = Size(image.width.toDouble(), image.height.toDouble());
+      image.dispose();
+      return size;
+    } catch (e) {
+      debugPrint('Failed to decode image size: $e');
+      return null;
+    }
+  }
+  
   Future<Uint8List?> _createMarkedUpImage() async {
     if (_imageForMarkup == null) return null;
 
@@ -292,14 +410,16 @@ class CanvasProvider extends ChangeNotifier {
     
     canvas.drawImage(image, Offset.zero, Paint());
 
-    final paint = Paint()
-      ..color = Colors.red
-      ..strokeWidth = 10.0
-      ..strokeCap = StrokeCap.round;
+    for (final stroke in _markupStrokes) {
+      if (stroke.points.length < 2) continue;
+      final paint = Paint()
+        ..color = stroke.color
+        ..strokeWidth = stroke.strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..style = PaintingStyle.stroke;
 
-    for (int i = 0; i < _markupPoints.length - 1; i++) {
-      if (_markupPoints[i] != null && _markupPoints[i + 1] != null) {
-        canvas.drawLine(_markupPoints[i]!, _markupPoints[i + 1]!, paint);
+      for (int i = 0; i < stroke.points.length - 1; i++) {
+        canvas.drawLine(stroke.points[i], stroke.points[i + 1], paint);
       }
     }
 
