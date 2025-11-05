@@ -16,7 +16,8 @@ dependencies:
   screenshot: ^3.0.0
   image_picker: ^1.0.7
   image_gallery_saver: ^2.0.3
-  camera: ^0.11.0 # 카메라 플러그인 추가
+  camera: ^0.11.0
+  path_provider: ^2.0.11 # 임시 파일 저장을 위해 추가
 
 dev_dependencies:
   flutter_test:
