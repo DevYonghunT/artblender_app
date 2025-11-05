@@ -7,8 +7,6 @@ class ShapeSelectionPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // provider의 상태를 읽기만 하므로 listen: false
-    final provider = context.read<CanvasProvider>();
 
     return Positioned(
       top: 60, // 화면 상단에 배치
@@ -21,7 +19,7 @@ class ShapeSelectionPanel extends StatelessWidget {
             return Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.5),
+                color: Colors.black.withValues(alpha: 0.5),
                 borderRadius: BorderRadius.circular(24),
               ),
               child: Row(
