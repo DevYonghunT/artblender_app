@@ -60,7 +60,10 @@ class HomeScreen extends StatelessWidget {
             Consumer<CanvasProvider>(
               builder: (context, provider, _) {
                 // if 문에 중괄호를 추가하여 경고를 해결합니다.
-                if (provider.drawableImage == null && !provider.isPickingBackground) {
+                if (!provider.isMarkingUp &&
+                    provider.drawableImage == null &&
+                    !provider.isPickingSubject &&
+                    !provider.isPickingBackground) {
                   return ControlPanel(
                     onLoadDrawing: () => provider.loadDrawing(),
                     onLoadBackground: () => provider.startBackgroundPicking(),
