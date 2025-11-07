@@ -88,6 +88,13 @@ class SegmentationService {
       final canvas = Canvas(
           recorder, Rect.fromLTWH(0, 0, imageSize.width, imageSize.height));
 
+      // 흰색 배경을 먼저 그립니다
+      final whitePaint = Paint()..color = const Color(0xFFFFFFFF);
+      canvas.drawRect(
+        Rect.fromLTWH(0, 0, imageSize.width, imageSize.height),
+        whitePaint,
+      );
+
       canvas.clipPath(invertedPath);
       canvas.drawImage(originalImage, Offset.zero, Paint());
 

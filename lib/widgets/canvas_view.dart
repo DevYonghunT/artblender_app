@@ -1,10 +1,10 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import 'package:screenshot/screenshot.dart';
 
@@ -88,6 +88,18 @@ class _CanvasViewState extends State<CanvasView> {
           provider.ensureMarkupMenuOffset(_defaultMenuOffset(context));
         });
 
+        final cutoutRect = provider.markupTarget == MarkupTarget.background &&
+                provider.cutoutImage != null &&
+                provider.subjectImageSize != null &&
+                provider.cutoutImageSize != null
+            ? _calculateCutoutRect(
+                context,
+                constraints.biggest,
+                provider.subjectImageSize!,
+                provider.cutoutImageSize!,
+              )
+            : null;
+
         return Stack(
           fit: StackFit.expand,
           children: [
@@ -96,23 +108,50 @@ class _CanvasViewState extends State<CanvasView> {
               image,
               size: targetSize,
             ),
+            if (cutoutRect != null)
+              IgnorePointer(
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // 바깥쪽 블러 효과
+                    ClipPath(
+                      clipper: _CutoutClipper(cutoutRect),
+                      child: ImageFiltered(
+                        imageFilter: ui.ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                        child: _buildFullScreenFile(
+                          context,
+                          image,
+                          size: targetSize,
+                        ),
+                      ),
+                    ),
+                    // 회색 점선 네모칸
+                    CustomPaint(
+                      painter: _CutoutRectPainter(cutoutRect),
+                      child: const SizedBox.expand(),
+                    ),
+                  ],
+                ),
+              ),
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onPanStart: (details) => provider.startMarkup(details.localPosition),
-              onPanUpdate: (details) => provider.updateMarkup(details.localPosition),
+              onPanStart: (details) =>
+                  provider.startMarkup(details.localPosition),
+              onPanUpdate: (details) =>
+                  provider.updateMarkup(details.localPosition),
               onPanEnd: (_) => provider.endMarkup(),
-            child: CustomPaint(
-              painter: MarkupPainter(strokes: provider.markupStrokes),
-              child: const SizedBox.expand(),
+              child: CustomPaint(
+                painter: MarkupPainter(strokes: provider.markupStrokes),
+                child: const SizedBox.expand(),
+              ),
             ),
-          ),
-          _buildMarkupTexts(context, provider, constraints.biggest),
-          if (_isMarkupMenuVisible)
-            _buildMarkupMenu(context, provider, constraints),
-          _buildMarkupMenuToggle(context),
-          _buildMarkupActions(context, provider),
-        ],
-      );
+            _buildMarkupTexts(context, provider, constraints.biggest),
+            if (_isMarkupMenuVisible)
+              _buildMarkupMenu(context, provider, constraints),
+            _buildMarkupMenuToggle(context),
+            _buildMarkupActions(context, provider),
+          ],
+        );
       },
     );
   }
@@ -654,56 +693,36 @@ class _CanvasViewState extends State<CanvasView> {
   }
 
   Widget buildCameraPreview(BuildContext context, CanvasProvider provider) {
-    final cameraController = provider.cameraController;
-    if (cameraController == null || !cameraController.value.isInitialized) {
+    final controller = provider.cameraController;
+    if (controller == null || !controller.value.isInitialized) {
       return const Center(child: CircularProgressIndicator());
     }
+
     final scheme = Theme.of(context).colorScheme;
     final isSubjectCapture = provider.isPickingSubject;
-    final subjectRatio = _ratioFromSize(provider.subjectImageSize);
-    final aspectRatio =
-        subjectRatio ?? cameraController.value.aspectRatio;
-
-    final layers = <Widget>[
-      if (!isSubjectCapture && provider.subjectImage != null)
-        Positioned.fill(
-          child: _buildFullScreenFile(
-            context,
-            provider.subjectImage!,
-            size: provider.subjectImageSize,
-            blur: true,
-            opacity: 0.35,
-          ),
-        ),
-      Positioned.fill(
-        child: _buildFullScreenChild(
-          context,
-          CameraPreview(cameraController),
-          aspectRatio,
-          fit: isSubjectCapture ? BoxFit.contain : BoxFit.cover,
-        ),
-      ),
-    ];
-
-    if (!isSubjectCapture && provider.cutoutImage != null) {
-      layers.add(
-        Positioned.fill(
-          child: IgnorePointer(
-            child: _buildFullScreenBytes(
-              context,
-              provider.cutoutImage!,
-              size: provider.cutoutImageSize ?? provider.subjectImageSize,
-              opacity: 0.85,
-            ),
-          ),
-        ),
-      );
-    }
 
     return Stack(
       fit: StackFit.expand,
       children: [
-        ...layers,
+        if (!isSubjectCapture && provider.subjectImage != null)
+          Opacity(
+            opacity: 0.35,
+            child: ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+              child: Image.file(
+                provider.subjectImage!,
+                fit: BoxFit.cover,
+              ),
+            ),
+          ),
+        CameraPreview(controller),
+        if (!isSubjectCapture && provider.cutoutImage != null)
+          IgnorePointer(
+            child: Image.memory(
+              provider.cutoutImage!,
+              fit: BoxFit.cover,
+            ),
+          ),
         Positioned(
           bottom: 80,
           left: 0,
@@ -718,8 +737,8 @@ class _CanvasViewState extends State<CanvasView> {
                 style: FilledButton.styleFrom(
                   backgroundColor: scheme.errorContainer,
                   foregroundColor: scheme.onErrorContainer,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 20, vertical: 16),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
                   ),
@@ -735,8 +754,8 @@ class _CanvasViewState extends State<CanvasView> {
                 style: FilledButton.styleFrom(
                   backgroundColor: scheme.primary,
                   foregroundColor: scheme.onPrimary,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 22, vertical: 18),
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 22, vertical: 18),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(18),
                   ),
@@ -750,6 +769,13 @@ class _CanvasViewState extends State<CanvasView> {
         ),
       ],
     );
+  }
+
+  int _rotationTurns(DeviceOrientation orientation) {
+    if (orientation == DeviceOrientation.landscapeRight) return 1;
+    if (orientation == DeviceOrientation.portraitDown) return 2;
+    if (orientation == DeviceOrientation.landscapeLeft) return 3;
+    return 0;
   }
 
   Widget buildDrawingCanvas(BuildContext context, CanvasProvider provider) {
@@ -922,21 +948,6 @@ class _CanvasViewState extends State<CanvasView> {
     );
   }
 
-  Widget _buildFullScreenBytes(
-    BuildContext context,
-    Uint8List bytes, {
-    Size? size,
-    double opacity = 1.0,
-  }) {
-    final image = Image.memory(bytes, fit: BoxFit.cover);
-    return _buildFullScreenChild(
-      context,
-      image,
-      _ratioFromSize(size) ?? _screenAspectRatio(context),
-      opacity: opacity,
-    );
-  }
-
   Widget _buildFullScreenChild(
     BuildContext context,
     Widget child,
@@ -979,6 +990,123 @@ class _CanvasViewState extends State<CanvasView> {
     final size = MediaQuery.of(context).size;
     if (size.height == 0) return 1.0;
     return size.width / size.height;
+  }
+
+  Rect? _calculateCutoutRect(
+    BuildContext context,
+    Size canvasSize,
+    Size subjectImageSize,
+    Size cutoutImageSize,
+  ) {
+    // cutoutImage는 원본 이미지 크기로 생성되므로 subjectImageSize와 동일
+    // 따라서 cutoutImage는 subjectImage와 동일한 영역에 표시됨
+    final imageRatio = _ratioFromSize(subjectImageSize) ?? 1.0;
+    final screenSize = MediaQuery.of(context).size;
+    final verticalPadding = screenSize.height <= 0
+        ? 0.0
+        : (screenSize.height * 0.1)
+            .clamp(0.0, screenSize.height / 2)
+            .toDouble();
+
+    // FittedBox의 BoxFit.cover 로직을 따라 이미지가 표시되는 영역 계산
+    final availableWidth = canvasSize.width;
+    final availableHeight = canvasSize.height - (verticalPadding * 2);
+
+    final fittedSizes = applyBoxFit(
+      BoxFit.cover,
+      Size(imageRatio, 1.0),
+      Size(availableWidth, availableHeight),
+    );
+
+    final imageDisplayWidth = fittedSizes.destination.width;
+    final imageDisplayHeight = fittedSizes.destination.height;
+    final imageDisplayLeft = (availableWidth - imageDisplayWidth) / 2;
+    final imageDisplayTop = verticalPadding + (availableHeight - imageDisplayHeight) / 2;
+
+    // cutoutImage는 subjectImage와 동일한 크기이므로 동일한 영역에 표시
+    return Rect.fromLTWH(
+      imageDisplayLeft,
+      imageDisplayTop,
+      imageDisplayWidth,
+      imageDisplayHeight,
+    );
+  }
+}
+
+class _CutoutClipper extends CustomClipper<Path> {
+  final Rect cutoutRect;
+
+  _CutoutClipper(this.cutoutRect);
+
+  @override
+  Path getClip(Size size) {
+    final path = Path()
+      ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
+      ..addRect(cutoutRect)
+      ..fillType = PathFillType.evenOdd;
+    return path;
+  }
+
+  @override
+  bool shouldReclip(covariant _CutoutClipper oldClipper) {
+    return oldClipper.cutoutRect != cutoutRect;
+  }
+}
+
+class _CutoutRectPainter extends CustomPainter {
+  final Rect cutoutRect;
+
+  _CutoutRectPainter(this.cutoutRect);
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey
+      ..strokeWidth = 2.0
+      ..style = PaintingStyle.stroke;
+
+    final path = Path();
+    const dashLength = 8.0;
+    const gap = 4.0;
+
+    // 상단 선
+    double x = cutoutRect.left;
+    while (x < cutoutRect.right) {
+      path.moveTo(x, cutoutRect.top);
+      path.lineTo((x + dashLength).clamp(cutoutRect.left, cutoutRect.right), cutoutRect.top);
+      x += dashLength + gap;
+    }
+
+    // 우측 선
+    double y = cutoutRect.top;
+    while (y < cutoutRect.bottom) {
+      path.moveTo(cutoutRect.right, y);
+      path.lineTo(cutoutRect.right, (y + dashLength).clamp(cutoutRect.top, cutoutRect.bottom));
+      y += dashLength + gap;
+    }
+
+    // 하단 선
+    x = cutoutRect.left;
+    while (x < cutoutRect.right) {
+      path.moveTo(x, cutoutRect.bottom);
+      path.lineTo((x + dashLength).clamp(cutoutRect.left, cutoutRect.right), cutoutRect.bottom);
+      x += dashLength + gap;
+    }
+
+    // 좌측 선
+    y = cutoutRect.top;
+    while (y < cutoutRect.bottom) {
+      path.moveTo(cutoutRect.left, y);
+      path.lineTo(cutoutRect.left, (y + dashLength).clamp(cutoutRect.top, cutoutRect.bottom));
+      y += dashLength + gap;
+    }
+
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CutoutRectPainter oldDelegate) {
+    return oldDelegate.cutoutRect != cutoutRect;
   }
 }
 
